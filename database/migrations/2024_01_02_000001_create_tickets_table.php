@@ -8,33 +8,24 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
-     * 
-     * Membuat tabel tickets untuk sistem ticketing
-     * Sesuai dengan materi Hari 3 - MVC Laravel
      */
     public function up(): void
     {
         Schema::create('tickets', function (Blueprint $table) {
-            // Primary key auto-increment
             $table->id();
-            
-            // Foreign key ke tabel users
-            // onDelete('cascade') = jika user dihapus, tiketnya juga terhapus
+
+            // Foreign key ke users - owner ticket
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            
-            // Judul tiket - wajib diisi, max 255 karakter
+
+            // Foreign key ke users - staff yang di-assign (nullable)
+            $table->foreignId('assigned_to')->nullable()->constrained('users')->onDelete('set null');
+
             $table->string('title');
-            
-            // Deskripsi tiket - text panjang
             $table->text('description');
-            
-            // Status tiket dengan nilai default 'open'
-            $table->enum('status', ['open', 'in_progress', 'closed'])->default('open');
-            
-            // Prioritas tiket dengan nilai default 'medium'
             $table->enum('priority', ['low', 'medium', 'high'])->default('medium');
-            
-            // Timestamps: created_at dan updated_at
+            $table->enum('status', ['open', 'in_progress', 'resolved', 'closed'])->default('open');
+            $table->string('category')->nullable();  // Category for ticket organization
+
             $table->timestamps();
         });
     }

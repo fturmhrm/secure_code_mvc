@@ -1,0 +1,13 @@
+# RuleID	Action	Description
+
+10015   IGNORE    # Incomplete Cache-control (tidak kritis)
+10020	WARN      # X-Frame-Options Missing
+10021	FAIL	  # X-Content-Type-Options Missing
+10035	WARN	  # Strict-Transport-Security Missing
+10038	WARN	  # CSP Header Not Set
+10098	IGNORE	  # Cross-Domain Misconfiguration
+40012	FAIL	  # Cross Site Scripting (Reflected)
+40014	FAIL	  # Cross Site Scripting (Persistent)
+40018	FAIL	  # SQL Injection
+90022	FAIL	  # Application Error Disclosure
+90033	WARN	  # Loosely Scoped Cookie

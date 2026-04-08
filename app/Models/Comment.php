@@ -9,12 +9,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * Model Comment
  * 
- * Untuk komentar pada Tickets (fitur real aplikasi)
- * Memerlukan authentication (user_id)
- * 
- * TERPISAH dari XssLabComment yang digunakan untuk demo XSS
- * 
- * Tabel: comments
+ * Digunakan untuk demo Stored XSS
+ * Menunjukkan bagaimana data dari user bisa berbahaya
  */
 class Comment extends Model
 {
@@ -22,7 +18,7 @@ class Comment extends Model
 
     protected $fillable = [
         'ticket_id',
-        'user_id',
+        'author_name',
         'content',
     ];
 
@@ -34,11 +30,8 @@ class Comment extends Model
         return $this->belongsTo(Ticket::class);
     }
 
-    /**
-     * Relasi: Comment belongs to User
-     */
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'author_name', 'name');
     }
 }

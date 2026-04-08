@@ -1,0 +1,2 @@
+﻿Semua file tersebut biasanya sudah digenerate otomatis ketika install telescope, jika tidak ada perubahan apapun source code ini bisa diabaikan saja
+

@@ -1,364 +1,368 @@
-# Panduan Implementasi - Hari 5: Lab Lengkap XSS Prevention
+# Panduan Implementasi - Minggu 3 Hari 2: Input Validation
 
 ## Daftar Isi
 
 1. [Overview](#overview)
-2. [Perbedaan dengan Hari 4](#perbedaan-dengan-hari-4)
-3. [Step 1: CommentController](#step-1-commentcontroller)
-4. [Step 2: Security Headers Middleware](#step-2-security-headers-middleware)
-5. [Step 3: Update Ticket Show View](#step-3-update-ticket-show-view)
-6. [Step 4: Security Context Popup](#step-4-security-context-popup)
-7. [Step 5: Security Testing Dashboard](#step-5-security-testing-dashboard)
-8. [Step 6: Routes](#step-6-routes)
-9. [Step 7: Register Middleware](#step-7-register-middleware)
-10. [Testing](#testing)
+2. [Step 1: Form Request Classes](#step-1-form-request-classes)
+3. [Step 2: Update Controller](#step-2-update-controller)
+4. [Step 3: Update Views](#step-3-update-views)
+5. [Step 4: Validation Lab](#step-4-validation-lab)
+6. [Step 5: Routes](#step-5-routes)
+7. [Testing](#testing)
+8. [Checklist Keamanan](#checklist-keamanan)
 
 ---
 
 ## Overview
 
-Hari ini kita akan melengkapi fitur Comments pada sistem eTicketing dan membuat dashboard untuk Security Testing. Fokus utama adalah penerapan XSS prevention yang sudah dipelajari di hari sebelumnya ke dalam fitur nyata.
+Hari ini kita akan mengimplementasikan **Input Validation** yang secure menggunakan Laravel Form Request. Fokus utama:
 
----
+1. **Server-side validation** - WAJIB untuk keamanan
+2. **Custom error messages** - Bahasa Indonesia yang user-friendly
+3. **Form Request classes** - Code organization yang baik
+4. **Error handling di views** - UX yang baik
 
-## ⚠️ Perbedaan dengan Hari 4
+### ⚠️ Prinsip Dasar
 
-**PENTING:** Ada **2 tabel comments terpisah** di bootcamp ini:
-
-| Aspek | Hari 4: XSS Lab | Hari 5: Ticket Comments |
-|-------|-----------------|-------------------------|
-| **Tabel** | `xss_lab_comments` | `comments` |
-| **Model** | `XssLabComment` | `Comment` |
-| **Tujuan** | Demo XSS (vulnerable & secure) | Fitur real ticket comments |
-| **Auth** | ❌ Tidak (pakai `author_name`) | ✅ Ya (pakai `user_id`) |
-| **Bisa di-reset?** | ✅ Ya, untuk demo ulang | ❌ Tidak, data real |
-
-**Mengapa dipisah?**
-1. XSS Lab tidak memerlukan authentication (untuk demo mudah)
-2. XSS Lab bisa di-reset kapan saja tanpa mempengaruhi data real
-3. Struktur berbeda: `author_name` (guest) vs `user_id` (authenticated)
-
----
-
-## Step 1: CommentController
-
-Copy file `app/Http/Controllers/CommentController.php` ke project Anda.
-
-### Penjelasan Keamanan:
-
-```php
-// ✅ VALIDASI INPUT
-$validated = $request->validate([
-    'content' => 'required|string|min:3|max:2000',
-]);
-
-// ✅ SANITASI: strip_tags untuk hapus HTML
-$cleanContent = strip_tags($validated['content']);
 ```
-
-**Mengapa ini penting?**
-- `validate()` memastikan input sesuai format yang diharapkan
-- `strip_tags()` menghapus semua HTML tags dari input
-- Ini adalah defense in depth - multiple layers of protection
-
----
-
-## Step 2: Security Headers Middleware
-
-Copy file `app/Http/Middleware/SecurityHeaders.php` ke project Anda.
-
-### Headers yang ditambahkan:
-
-| Header | Nilai | Fungsi |
-|--------|-------|--------|
-| X-Content-Type-Options | nosniff | Mencegah MIME type sniffing |
-| X-Frame-Options | SAMEORIGIN | Mencegah clickjacking |
-| X-XSS-Protection | 1; mode=block | Aktifkan XSS filter browser |
-| Referrer-Policy | strict-origin-when-cross-origin | Kontrol referrer header |
-| Content-Security-Policy | ... | Kontrol sumber daya yang boleh dimuat |
-
-### Register Middleware:
-
-Untuk Laravel 11+, tambahkan di `bootstrap/app.php`:
-
-```php
-->withMiddleware(function (Middleware $middleware) {
-    $middleware->web(append: [
-        \App\Http\Middleware\SecurityHeaders::class,
-    ]);
-})
-```
-
-Untuk Laravel 10 dan sebelumnya, di `app/Http/Kernel.php`:
-
-```php
-protected $middlewareGroups = [
-    'web' => [
-        // ... middleware lainnya
-        \App\Http\Middleware\SecurityHeaders::class,
-    ],
-];
+╔═══════════════════════════════════════════════════════════════╗
+║                                                               ║
+║              NEVER TRUST USER INPUT!                          ║
+║                                                               ║
+║   Semua data dari user harus dianggap BERBAHAYA               ║
+║   sampai divalidasi dan disanitasi.                           ║
+║                                                               ║
+╚═══════════════════════════════════════════════════════════════╝
 ```
 
 ---
 
-## Step 3: Update Ticket Show View
+## Step 1: Form Request Classes
 
-Copy file `resources/views/tickets/show.blade.php`.
+### Generate Form Request
 
-### Security Features di View:
-
-1. **CSRF Token**: `@csrf` di setiap form
-2. **Auto-escape**: Semua output menggunakan `{{ }}`
-3. **Method Spoofing**: `@method('DELETE')` untuk form delete
-4. **Confirm Dialog**: JavaScript confirmation sebelum delete
-
-```blade
-{{-- ✅ SAFE: Auto-escaped --}}
-<p>{{ $ticket->description }}</p>
-
-{{-- ✅ Preserve line breaks dengan aman --}}
-<p>{!! nl2br(e($comment->content)) !!}</p>
+```bash
+# Di terminal, jalankan:
+php artisan make:request StoreTicketRequest
+php artisan make:request UpdateTicketRequest
 ```
 
----
+### Copy file ke project:
 
-## Step 4: Security Context Popup
+1. `app/Http/Requests/StoreTicketRequest.php`
+2. `app/Http/Requests/UpdateTicketRequest.php`
 
-Copy file `resources/views/partials/security-popup.blade.php`.
-
-### Cara Menggunakan:
-
-1. Include di view yang diinginkan:
-```blade
-@include('partials.security-popup')
-```
-
-2. Pastikan Bootstrap 5 sudah di-load
-
-3. Trigger button akan muncul floating di kanan bawah
-
----
-
-## Step 5: Security Testing Dashboard
-
-Copy semua file di folder `resources/views/security-testing/`.
-
-Dashboard ini menyediakan:
-- **XSS Test**: Testing berbagai payload XSS
-- **CSRF Test**: Demonstrasi CSRF protection
-- **Headers Test**: Cek security headers
-- **Audit Checklist**: Checklist keamanan aplikasi
-
----
-
-## Step 6: Routes
-
-Tambahkan routes berikut ke `routes/web.php`:
-
-```php
-// Comments routes
-Route::post('/tickets/{ticket}/comments', [CommentController::class, 'store'])
-    ->name('comments.store')
-    ->middleware('auth');
-
-Route::delete('/comments/{comment}', [CommentController::class, 'destroy'])
-    ->name('comments.destroy')
-    ->middleware('auth');
-
-// Security Testing routes (hanya untuk development!)
-Route::prefix('security-testing')->name('security-testing.')->group(function () {
-    Route::get('/', [SecurityTestController::class, 'index'])->name('index');
-    Route::get('/xss', [SecurityTestController::class, 'xssTest'])->name('xss');
-    Route::get('/csrf', [SecurityTestController::class, 'csrfTest'])->name('csrf');
-    Route::post('/csrf', [SecurityTestController::class, 'csrfTestPost'])->name('csrf.post');
-    Route::get('/headers', [SecurityTestController::class, 'headersTest'])->name('headers');
-});
-```
-
----
-
-## Step 7: Register Middleware
-
-### Laravel 11+
-
-Edit `bootstrap/app.php`:
+### Penjelasan StoreTicketRequest:
 
 ```php
 <?php
 
-use Illuminate\Foundation\Application;
-use Illuminate\Foundation\Configuration\Exceptions;
-use Illuminate\Foundation\Configuration\Middleware;
+namespace App\Http\Requests;
 
-return Application::configure(basePath: dirname(__DIR__))
-    ->withRouting(
-        web: __DIR__.'/../routes/web.php',
-        commands: __DIR__.'/../routes/console.php',
-        health: '/up',
-    )
-    ->withMiddleware(function (Middleware $middleware) {
-        $middleware->web(append: [
-            \App\Http\Middleware\SecurityHeaders::class,
+use Illuminate\Foundation\Http\FormRequest;
+
+class StoreTicketRequest extends FormRequest
+{
+    // Authorization - siapa yang boleh akses
+    public function authorize(): bool
+    {
+        return true; // Semua user boleh buat tiket
+    }
+
+    // Sanitasi sebelum validasi
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'title' => trim($this->title),
+            'description' => trim($this->description),
         ]);
-    })
-    ->withExceptions(function (Exceptions $exceptions) {
-        //
-    })->create();
+    }
+
+    // Validation rules
+    public function rules(): array
+    {
+        return [
+            'title' => ['required', 'string', 'min:5', 'max:255'],
+            'description' => ['required', 'string', 'min:20'],
+            'priority' => ['required', 'in:low,medium,high'], // WHITELIST!
+        ];
+    }
+
+    // Custom error messages
+    public function messages(): array
+    {
+        return [
+            'title.required' => 'Judul tiket wajib diisi.',
+            'title.min' => 'Judul minimal :min karakter.',
+            // ... dst
+        ];
+    }
+}
 ```
 
-### Laravel 10 dan sebelumnya
+---
 
-Edit `app/Http/Kernel.php`:
+## Step 2: Update Controller
+
+### Sebelum (Tanpa Form Request):
 
 ```php
-protected $middlewareGroups = [
-    'web' => [
-        \App\Http\Middleware\EncryptCookies::class,
-        \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
-        \Illuminate\Session\Middleware\StartSession::class,
-        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
-        \App\Http\Middleware\VerifyCsrfToken::class,
-        \Illuminate\Routing\Middleware\SubstituteBindings::class,
-        \App\Http\Middleware\SecurityHeaders::class, // <-- Tambahkan ini
-    ],
-    // ...
-];
+public function store(Request $request)
+{
+    // Validasi di controller - KOTOR!
+    $validated = $request->validate([
+        'title' => 'required|string|max:255',
+        // ... banyak rules
+    ], [
+        'title.required' => 'Judul wajib diisi.',
+        // ... banyak messages
+    ]);
+    
+    $ticket = Ticket::create($validated);
+    return redirect()->route('tickets.show', $ticket);
+}
+```
+
+### Sesudah (Dengan Form Request):
+
+```php
+use App\Http\Requests\StoreTicketRequest;
+use App\Http\Requests\UpdateTicketRequest;
+
+public function store(StoreTicketRequest $request)
+{
+    // Validasi OTOMATIS terjadi sebelum method dipanggil!
+    // Jika gagal, auto redirect back dengan errors
+    
+    $ticket = Ticket::create($request->validated());
+    return redirect()
+        ->route('tickets.show', $ticket)
+        ->with('success', 'Tiket berhasil dibuat!');
+}
+
+public function update(UpdateTicketRequest $request, Ticket $ticket)
+{
+    $ticket->update($request->validated());
+    return redirect()
+        ->route('tickets.show', $ticket)
+        ->with('success', 'Tiket berhasil diperbarui!');
+}
+```
+
+---
+
+## Step 3: Update Views
+
+### Error Display Pattern:
+
+```blade
+{{-- 1. Global Error Display --}}
+@if ($errors->any())
+    <div class="alert alert-danger">
+        <h6>Oops! Ada kesalahan:</h6>
+        <ul class="mb-0">
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
+
+{{-- 2. Per-field Error Display --}}
+<div class="mb-3">
+    <label for="title">Judul</label>
+    <input type="text" 
+           name="title" 
+           class="form-control @error('title') is-invalid @enderror"
+           value="{{ old('title') }}">
+    
+    @error('title')
+        <div class="invalid-feedback">{{ $message }}</div>
+    @enderror
+</div>
+```
+
+### Penjelasan:
+
+| Directive | Fungsi |
+|-----------|--------|
+| `@error('field')` | Check apakah field punya error |
+| `$message` | Pesan error untuk field tersebut |
+| `$errors->any()` | Check apakah ada error sama sekali |
+| `$errors->all()` | Ambil semua error messages |
+| `old('field')` | Ambil input sebelumnya (untuk preserve input) |
+
+---
+
+## Step 4: Validation Lab
+
+Lab ini mendemonstrasikan perbedaan antara form DENGAN dan TANPA server-side validation.
+
+### Copy files:
+
+1. `app/Http/Controllers/ValidationLabController.php`
+2. `resources/views/validation-lab/index.blade.php`
+3. `resources/views/validation-lab/vulnerable.blade.php`
+4. `resources/views/validation-lab/secure.blade.php`
+
+### Akses:
+
+- `/validation-lab` - Menu lab
+- `/validation-lab/vulnerable` - Form TANPA server validation
+- `/validation-lab/secure` - Form DENGAN server validation
+
+### Demo Bypass Client-Side:
+
+1. Buka form vulnerable
+2. Buka DevTools (F12)
+3. Inspect input element
+4. Hapus atribut `required`, `min`, `max`, `pattern`
+5. Ubah `type="email"` ke `type="text"`
+6. Submit form dengan data invalid
+7. **Hasil:** Data invalid masuk ke sistem!
+
+---
+
+## Step 5: Routes
+
+Tambahkan ke `routes/web.php`:
+
+```php
+use App\Http\Controllers\ValidationLabController;
+
+// Validation Lab
+Route::prefix('validation-lab')->name('validation-lab.')->group(function () {
+    Route::get('/', [ValidationLabController::class, 'index'])->name('index');
+    
+    // Vulnerable
+    Route::get('/vulnerable', [ValidationLabController::class, 'vulnerableForm'])->name('vulnerable');
+    Route::post('/vulnerable', [ValidationLabController::class, 'vulnerableSubmit'])->name('vulnerable.submit');
+    Route::post('/vulnerable/clear', [ValidationLabController::class, 'vulnerableClear'])->name('vulnerable.clear');
+    
+    // Secure
+    Route::get('/secure', [ValidationLabController::class, 'secureForm'])->name('secure');
+    Route::post('/secure', [ValidationLabController::class, 'secureSubmit'])->name('secure.submit');
+    Route::post('/secure/clear', [ValidationLabController::class, 'secureClear'])->name('secure.clear');
+});
+
+// Tickets dengan Form Request
+Route::resource('tickets', TicketController::class);
 ```
 
 ---
 
 ## Testing
 
-### 1. Test Comments Feature
+### Test Case 1: Submit Form Kosong
 
-```bash
-# Buka halaman ticket
-http://localhost:8000/tickets/1
+**Input:** Kosongkan semua field, submit
+**Expected:** Error messages muncul untuk semua required fields
 
-# Coba submit comment dengan XSS payload
-<script>alert('XSS')</script>
+### Test Case 2: Input Terlalu Pendek
 
-# Payload harus ditampilkan sebagai teks biasa
-```
+**Input:** Title = "Bug" (kurang dari 5 karakter)
+**Expected:** Error "Judul minimal 5 karakter."
 
-### 2. Test Security Headers
+### Test Case 3: Priority Invalid
 
-```bash
-# Menggunakan curl
-curl -I http://localhost:8000
+**Input:** Via DevTools, ubah value select ke "urgent"
+**Expected:** Error "Prioritas tidak valid."
 
-# Atau buka DevTools > Network > Headers
-```
+### Test Case 4: Bypass Client-Side
 
-Expected output:
-```
-X-Content-Type-Options: nosniff
-X-Frame-Options: SAMEORIGIN
-X-XSS-Protection: 1; mode=block
-Content-Security-Policy: default-src 'self'; ...
-```
+**Input:** Hapus atribut HTML5 validation, submit data invalid
+**Expected:** 
+- Vulnerable form: Data masuk
+- Secure form: Error muncul
 
-### 3. Test CSRF Protection
+### Test Case 5: Valid Input
 
-Buat file `test-csrf.html`:
-
-```html
-<!DOCTYPE html>
-<html>
-<head><title>CSRF Test</title></head>
-<body>
-    <h1>CSRF Attack Test</h1>
-    <form action="http://localhost:8000/tickets/1/comments" method="POST">
-        <input name="content" value="Spam from external site">
-        <button type="submit">Submit tanpa CSRF Token</button>
-    </form>
-</body>
-</html>
-```
-
-Buka file ini di browser dan submit. Expected: **419 Page Expired**
-
-### 4. Security Testing Dashboard
-
-```bash
-http://localhost:8000/security-testing
-```
-
-Gunakan dashboard untuk:
-- Test berbagai XSS payloads
-- Verify CSRF protection
-- Check security headers
-- Complete audit checklist
+**Input:** Semua field valid
+**Expected:** Redirect ke show page dengan success message
 
 ---
 
-## Security Audit Checklist
+## Checklist Keamanan
 
-Sebelum menyelesaikan hari ini, pastikan:
+### ✅ Yang HARUS dilakukan:
 
-### XSS Prevention
-- [ ] Semua user input di-escape dengan `{{ }}`
-- [ ] `{!! !!}` hanya untuk trusted content
-- [ ] JavaScript data menggunakan `@json()`
-- [ ] `strip_tags()` digunakan untuk sanitasi input
+- [ ] Semua form memiliki server-side validation
+- [ ] String fields memiliki `max` length
+- [ ] Numeric fields memiliki `min`/`max` range
+- [ ] Enum/select menggunakan `in:value1,value2` (WHITELIST)
+- [ ] Email menggunakan rule `email`
+- [ ] Foreign keys menggunakan `exists:table,column`
+- [ ] Error messages tidak expose sensitive info
+- [ ] Form Request digunakan untuk code organization
+- [ ] `$request->validated()` digunakan, bukan `$request->all()`
 
-### CSRF Protection
-- [ ] `@csrf` ada di setiap form
-- [ ] VerifyCsrfToken middleware aktif
+### ❌ Yang JANGAN dilakukan:
 
-### Input Validation
-- [ ] Semua input divalidasi di server
-- [ ] Validation rules yang spesifik (min, max, string, etc.)
-
-### Security Headers
-- [ ] SecurityHeaders middleware aktif
-- [ ] CSP policy dikonfigurasi
-
-### Authentication & Authorization
-- [ ] Routes dilindungi middleware auth
-- [ ] Authorization check (owner only delete)
+- [ ] Hanya mengandalkan client-side validation
+- [ ] Skip validasi untuk "internal" endpoint
+- [ ] Trust hidden fields tanpa validasi
+- [ ] Gunakan blacklist approach
+- [ ] Tampilkan technical error ke user
+- [ ] Hardcode validation di banyak tempat
 
 ---
 
-## Troubleshooting
+## Validation Rules Reference
 
-### Form tidak bisa submit
+### Basic Rules
 
-**Problem**: Error 419 Page Expired
+| Rule | Fungsi |
+|------|--------|
+| `required` | Wajib diisi |
+| `nullable` | Boleh null |
+| `string` | Harus string |
+| `integer` | Harus integer |
+| `numeric` | Harus angka |
+| `boolean` | Harus true/false |
+| `array` | Harus array |
 
-**Solution**: Pastikan `@csrf` ada di dalam form
+### Size Rules
 
-### Comment tidak tersimpan
+| Rule | Fungsi |
+|------|--------|
+| `min:n` | Minimal n |
+| `max:n` | Maksimal n |
+| `between:a,b` | Antara a dan b |
+| `size:n` | Harus tepat n |
 
-**Problem**: Validation error
+### Format Rules
 
-**Solution**: Cek validation rules dan pastikan input memenuhi syarat
+| Rule | Fungsi |
+|------|--------|
+| `email` | Format email valid |
+| `url` | Format URL valid |
+| `date` | Format tanggal valid |
+| `regex:pattern` | Sesuai regex |
 
-### Security headers tidak muncul
+### Comparison Rules
 
-**Problem**: Headers tidak ada di response
+| Rule | Fungsi |
+|------|--------|
+| `in:a,b,c` | Harus salah satu nilai (WHITELIST) |
+| `not_in:a,b,c` | Tidak boleh salah satu |
+| `confirmed` | Harus ada field `_confirmation` |
+| `same:field` | Harus sama dengan field lain |
 
-**Solution**: 
-1. Pastikan middleware terdaftar
-2. Clear cache: `php artisan config:clear`
-3. Restart server: `php artisan serve`
+### Database Rules
 
-### Modal tidak muncul
-
-**Problem**: Security context popup tidak tampil
-
-**Solution**: Pastikan Bootstrap 5 JS sudah di-load
+| Rule | Fungsi |
+|------|--------|
+| `unique:table,column` | Tidak boleh duplikat |
+| `exists:table,column` | Harus ada di database |
 
 ---
 
-## Kesimpulan
+## Tugas
 
-Setelah menyelesaikan hari ini, Anda telah:
+1. Implementasi `StoreTicketRequest` dan `UpdateTicketRequest`
+2. Update controller menggunakan Form Request
+3. Update views dengan error handling
+4. Test dengan berbagai input (valid dan invalid)
+5. Screenshot hasil testing
 
-1. ✅ Mengimplementasikan fitur Comments yang aman
-2. ✅ Menambahkan Security Headers
-3. ✅ Membuat Security Testing Dashboard
-4. ✅ Melakukan audit keamanan aplikasi
-
-**Next Step**: Minggu 3 - SQL Injection & Authentication
+**Deadline:** Sebelum pulang hari ini

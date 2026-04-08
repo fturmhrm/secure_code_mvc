@@ -2,7 +2,7 @@
 {{-- Tickets Show - dengan Comments --}}
 {{-- View untuk menampilkan detail ticket beserta komentar --}}
 {{-- Implementasi XSS Prevention yang benar --}}
-{{-- 
+{{--
 {{-- Materi Hari 5 - Lab Lengkap XSS Prevention --}}
 {{-- ============================================ --}}
 
@@ -72,7 +72,7 @@
                         <span class="badge bg-{{ $statusColor }} status-badge">
                             {{ ucfirst(str_replace('_', ' ', $ticket->status)) }}
                         </span>
-                        
+
                         {{-- Priority Badge --}}
                         @php
                             $priorityColors = [
@@ -92,34 +92,62 @@
                     <div class="ticket-description mb-4">
                         {!! nl2br(e($ticket->description)) !!}
                     </div>
-                    
+
                     <hr>
-                    
+
                     <div class="d-flex justify-content-between align-items-center">
                         <small class="text-muted">
                             <i class="bi bi-person"></i>
-                            Dibuat oleh 
+                            Dibuat oleh
                             <strong>{{ $ticket->user->name ?? 'Unknown' }}</strong>
                             pada {{ $ticket->created_at->format('d M Y, H:i') }}
                         </small>
-                        
+
                         @if($ticket->user_id === auth()->id())
                             <div class="btn-group btn-group-sm">
-                                <a href="{{ route('tickets.edit', $ticket) }}" 
-                                   class="btn btn-outline-primary">
-                                    <i class="bi bi-pencil"></i> Edit
-                                </a>
-                                <form action="{{ route('tickets.destroy', $ticket) }}" 
-                                      method="POST" 
-                                      class="d-inline"
-                                      onsubmit="return confirm('Yakin ingin menghapus ticket ini?')">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-outline-danger">
-                                        <i class="bi bi-trash"></i> Hapus
-                                    </button>
-                                </form>
+                                @can('update', $ticket)
+                                    <a href="{{ route('tickets.edit', $ticket) }}"
+                                       class="btn btn-outline-primary">
+                                        <i class="bi bi-pencil"></i> Edit
+                                    </a>
+                                @endcan
+                                @can('delete', $ticket)
+                                    <form action="{{ route('tickets.destroy', $ticket) }}"
+                                          method="POST"
+                                          class="d-inline"
+                                          onsubmit="return confirm('Yakin ingin menghapus ticket ini?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-outline-danger">
+                                            <i class="bi bi-trash"></i> Hapus
+                                        </button>
+                                    </form>
+                                @endcan
                             </div>
+                        @else
+                            {{-- MINGGU 4 HARI 2: Action buttons untuk staff/admin --}}
+                            @canany(['update', 'delete'], $ticket)
+                                <div class="btn-group btn-group-sm">
+                                    @can('update', $ticket)
+                                        <a href="{{ route('tickets.edit', $ticket) }}"
+                                           class="btn btn-outline-primary">
+                                            <i class="bi bi-pencil"></i> Edit
+                                        </a>
+                                    @endcan
+                                    @can('delete', $ticket)
+                                        <form action="{{ route('tickets.destroy', $ticket) }}"
+                                              method="POST"
+                                              class="d-inline"
+                                              onsubmit="return confirm('Yakin ingin menghapus ticket ini?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-outline-danger">
+                                                <i class="bi bi-trash"></i> Hapus
+                                            </button>
+                                        </form>
+                                    @endcan
+                                </div>
+                            @endcanany
                         @endif
                     </div>
                 </div>
@@ -138,25 +166,25 @@
                     <form action="{{ route('comments.store', $ticket) }}" method="POST">
                         {{-- ✅ CSRF Protection --}}
                         @csrf
-                        
+
                         <div class="mb-3">
                             <label for="content" class="form-label">Komentar</label>
-                            <textarea 
-                                name="content" 
-                                id="content" 
-                                rows="3" 
+                            <textarea
+                                name="content"
+                                id="content"
+                                rows="3"
                                 class="form-control @error('content') is-invalid @enderror"
                                 placeholder="Tulis komentar Anda di sini..."
                                 required
                                 minlength="3"
                                 maxlength="2000"
                             >{{ old('content') }}</textarea>
-                            
+
                             @error('content')
                                 {{-- ✅ SAFE: $message dari Laravel sudah sanitized --}}
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
-                            
+
                             <div class="form-text">
                                 <i class="bi bi-info-circle"></i>
                                 Minimal 3 karakter, maksimal 2000 karakter.
@@ -165,16 +193,16 @@
                                 </span>
                             </div>
                         </div>
-                        
+
                         <div class="d-flex justify-content-between align-items-center">
                             <button type="submit" class="btn btn-primary">
                                 <i class="bi bi-send"></i> Kirim Komentar
                             </button>
-                            
+
                             {{-- Security Context Button --}}
-                            <button type="button" 
-                                    class="btn btn-outline-info btn-sm" 
-                                    data-bs-toggle="modal" 
+                            <button type="button"
+                                    class="btn btn-outline-info btn-sm"
+                                    data-bs-toggle="modal"
                                     data-bs-target="#securityModal">
                                 <i class="bi bi-shield-check"></i> Security Info
                             </button>
@@ -189,7 +217,7 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
-                        <i class="bi bi-chat-square-text"></i> 
+                        <i class="bi bi-chat-square-text"></i>
                         Komentar ({{ $ticket->comments->count() }})
                     </h5>
                 </div>
@@ -217,15 +245,15 @@
                                         </small>
                                     </div>
                                 </div>
-                                
+
                                 {{-- Delete Button (hanya untuk owner atau admin) --}}
                                 @if(auth()->id() === $comment->user_id || (auth()->user()->is_admin ?? false))
-                                    <form action="{{ route('comments.destroy', $comment) }}" 
+                                    <form action="{{ route('comments.destroy', $comment) }}"
                                           method="POST"
                                           onsubmit="return confirm('Hapus komentar ini?')">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" 
+                                        <button type="submit"
                                                 class="btn btn-sm btn-outline-danger"
                                                 title="Hapus komentar">
                                             <i class="bi bi-trash"></i>
@@ -233,7 +261,7 @@
                                     </form>
                                 @endif
                             </div>
-                            
+
                             {{-- Comment Content --}}
                             <div class="comment-content ps-5">
                                 {{-- ✅ SAFE: nl2br untuk line breaks, e() untuk escaping --}}
@@ -268,14 +296,80 @@
                         <a href="{{ route('tickets.index') }}" class="btn btn-outline-secondary">
                             <i class="bi bi-arrow-left"></i> Kembali ke Daftar
                         </a>
-                        @if($ticket->status !== 'closed')
-                            <a href="{{ route('tickets.edit', $ticket) }}" class="btn btn-outline-primary">
-                                <i class="bi bi-pencil"></i> Edit Ticket
-                            </a>
-                        @endif
+                        @can('update', $ticket)
+                            @if($ticket->status !== 'closed')
+                                <a href="{{ route('tickets.edit', $ticket) }}" class="btn btn-outline-primary">
+                                    <i class="bi bi-pencil"></i> Edit Ticket
+                                </a>
+                            @endif
+                        @endcan
                     </div>
                 </div>
             </div>
+
+            {{-- MINGGU 4 HARI 2: Status Update (Admin/Staff) --}}
+            @can('changeStatus', $ticket)
+                <div class="card mb-4 border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h6 class="mb-0">
+                            <i class="bi bi-arrow-repeat"></i> Update Status
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <form action="{{ route('tickets.update-status', $ticket) }}" method="POST">
+                            @csrf
+                            @method('PATCH')
+                            <div class="mb-3">
+                                <select name="status" class="form-select form-select-sm">
+                                    <option value="open" {{ $ticket->status == 'open' ? 'selected' : '' }}>Open</option>
+                                    <option value="in_progress" {{ $ticket->status == 'in_progress' ? 'selected' : '' }}>In Progress</option>
+                                    <option value="resolved" {{ $ticket->status == 'resolved' ? 'selected' : '' }}>Resolved</option>
+                                    <option value="closed" {{ $ticket->status == 'closed' ? 'selected' : '' }}>Closed</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-warning btn-sm w-100">
+                                <i class="bi bi-check-lg"></i> Update Status
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            @endcan
+
+            {{-- MINGGU 4 HARI 2: Assign to Staff (Admin only) --}}
+            @can('assign-tickets')
+                <div class="card mb-4 border-info">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0">
+                            <i class="bi bi-person-plus"></i> Assign Ticket
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <form action="{{ route('tickets.assign', $ticket) }}" method="POST">
+                            @csrf
+                            @method('PATCH')
+                            <div class="mb-3">
+                                <select name="assigned_to" class="form-select form-select-sm">
+                                    <option value="">-- Tidak di-assign --</option>
+                                    @foreach($staffList ?? [] as $staff)
+                                        <option value="{{ $staff->id }}" {{ $ticket->assigned_to == $staff->id ? 'selected' : '' }}>
+                                            {{ $staff->name }} ({{ ucfirst($staff->role) }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-info btn-sm w-100">
+                                <i class="bi bi-check-lg"></i> Assign
+                            </button>
+                        </form>
+                        @if($ticket->assignee)
+                            <small class="text-muted d-block mt-2">
+                                <i class="bi bi-person-badge"></i>
+                                Saat ini: {{ $ticket->assignee->name }}
+                            </small>
+                        @endif
+                    </div>
+                </div>
+            @endcan
 
             {{-- Ticket Info --}}
             <div class="card mb-4">
@@ -356,20 +450,20 @@
     document.addEventListener('DOMContentLoaded', function() {
         const textarea = document.getElementById('content');
         const maxLength = 2000;
-        
+
         if (textarea) {
             // Create counter element
             const counter = document.createElement('div');
             counter.className = 'form-text text-end';
             counter.id = 'charCounter';
             textarea.parentNode.appendChild(counter);
-            
+
             function updateCounter() {
                 const remaining = maxLength - textarea.value.length;
                 counter.textContent = `${remaining} karakter tersisa`;
                 counter.className = remaining < 100 ? 'form-text text-end text-danger' : 'form-text text-end';
             }
-            
+
             textarea.addEventListener('input', updateCounter);
             updateCounter();
         }

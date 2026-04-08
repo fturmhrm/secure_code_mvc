@@ -1,0 +1,281 @@
+name: 🛡️ Security Pipeline — Secure Ticketing
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 2 * * 1'    # Setiap Senin jam 2 pagi (scan mingguan)
+
+jobs:
+  # ═══════════════════════════════════════
+  # JOB 1: SAST (Static Application Security Testing)
+  # ═══════════════════════════════════════
+  sast:
+    name: 🔍 SAST — PHPStan Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          # ══════════ Sesuaikan Database Masing-masing (pdo_mysql/pdo_pgsql) ══════════
+          extensions: mbstring, xml, ctype, pdo_pgsql
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('**/composer.lock') }}
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Run PHPStan (Level 5)
+        run: ./vendor/bin/phpstan analyse --error-format=github
+
+  # ═══════════════════════════════════════
+  # JOB 2: SCA (Software Composition Analysis)
+  # ═══════════════════════════════════════
+  sca:
+    name: 📦 SCA — Dependency Vulnerability Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          # ══════════ Sesuaikan Database Masing-masing (pdo_mysql/pdo_pgsql) ══════════
+          extensions: mbstring, xml, ctype, pdo_pgsql
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress
+
+      # PHP dependencies check
+      - name: Composer audit
+        run: composer audit --format=json | tee composer-audit.json
+
+      # Upload audit results
+      - name: Upload SCA Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sca-report
+          path: composer-audit.json
+
+  # ═══════════════════════════════════════
+  # JOB 3: Security Unit Tests
+  # ═══════════════════════════════════════
+  security-tests:
+    name: 🧪 Security Unit Tests
+    runs-on: ubuntu-latest
+    needs: [sast, sca]           # Tunggu SAST & SCA selesai
+
+    services:
+    # ══════════ Sesuaikan Database Masing-masing ══════════
+      # mysql:
+      #   image: mysql:8.0
+      #   env:
+      #     MYSQL_ROOT_PASSWORD: password
+      #     MYSQL_DATABASE: testing
+      #   ports:
+      #     - 3306:3306
+      #   options: >-
+      #     --health-cmd="mysqladmin ping"
+      #     --health-interval=10s
+      #     --health-timeout=5s
+      #     --health-retries=3
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: secure_ticketing_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          # ══════════ Sesuaikan Database Masing-masing (pdo_mysql/pdo_pgsql) ══════════
+          extensions: mbstring, xml, ctype, pdo_pgsql
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Prepare Laravel
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan migrate --force
+        env:
+          # ══════════ Sesuaikan Database Masing-masing ══════════
+          # DB_CONNECTION: mysql
+          # DB_HOST: 127.0.0.1
+          # DB_PORT: 3306
+          # DB_DATABASE: testing
+          # DB_USERNAME: root
+          # DB_PASSWORD: password
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: secure_ticketing_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: password
+
+      # Jalankan HANYA security tests
+      - name: Run Security Test Suite
+        run: php artisan test tests/Feature/Security/
+        env:
+          # ══════════ Sesuaikan Database Masing-masing ══════════
+          # DB_CONNECTION: mysql
+          # DB_HOST: 127.0.0.1
+          # DB_PORT: 3306
+          # DB_DATABASE: testing
+          # DB_USERNAME: root
+          # DB_PASSWORD: password
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: secure_ticketing_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: password
+  # ═══════════════════════════════════════
+  # JOB 4: Secrets Detection
+  # ═══════════════════════════════════════
+  secrets-scan:
+    name: 🔑 Secrets Detection — TruffleHog
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0         # Full history untuk scan semua commit
+
+      - name: TruffleHog Secrets Scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          extra_args: --only-verified
+
+  # ═══════════════════════════════════════
+  # JOB 5: DAST (Dynamic Application Security Testing)
+  # ═══════════════════════════════════════
+  dast:
+    name: 🕷️ DAST — OWASP ZAP Scan
+    runs-on: ubuntu-latest
+    needs: security-tests        # Hanya jalan setelah tests pass
+
+    services:
+    # ══════════ Sesuaikan Database Masing-masing ══════════
+      # mysql:
+      #   image: mysql:8.0
+      #   env:
+      #     MYSQL_ROOT_PASSWORD: password
+      #     MYSQL_DATABASE: testing
+      #   ports:
+      #     - 3306:3306
+      #   options: >-
+      #     --health-cmd="mysqladmin ping"
+      #     --health-interval=10s
+      #     --health-timeout=5s
+      #     --health-retries=3
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: secure_ticketing_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          # ══════════ Sesuaikan Database Masing-masing (pdo_mysql/pdo_pgsql) ══════════
+          extensions: mbstring, xml, ctype, pdo_pgsql
+
+      - name: Install & Prepare
+        run: |
+          composer install --prefer-dist --no-progress
+          cp .env.example .env
+          php artisan key:generate
+          php artisan migrate --force
+        env:
+          # ══════════ Sesuaikan Database Masing-masing ══════════
+          # DB_CONNECTION: mysql
+          # DB_HOST: 127.0.0.1
+          # DB_PORT: 3306
+          # DB_DATABASE: testing
+          # DB_USERNAME: root
+          # DB_PASSWORD: password
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: secure_ticketing_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: password
+
+      - name: Start Laravel server
+        run: php artisan serve &
+        env:
+          # ══════════ Sesuaikan Database Masing-masing ══════════
+          # DB_CONNECTION: mysql
+          # DB_HOST: 127.0.0.1
+          # DB_PORT: 3306
+          # DB_DATABASE: testing
+          # DB_USERNAME: root
+          # DB_PASSWORD: password
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: secure_ticketing_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: password
+
+      - name: Wait for server
+        run: |
+          for i in {1..30}; do
+            curl -s http://localhost:8000 > /dev/null && break
+            sleep 1
+          done
+
+      # ZAP Baseline Scan (passive only — cepat & aman)
+      - name: OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: 'http://localhost:8000'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+
+      - name: Upload ZAP Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zap-report
+          path: report_html.html
