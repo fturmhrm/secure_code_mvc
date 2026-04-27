@@ -1,0 +1,32 @@
+name: SAST & SCA Security Checks
+on: 
+push :
+branches: [main, develop]
+pull_request:
+branches: [main]
+jobs:
+sast:
+name: SAST PHPStan Analysis
+runs-on: ubuntu-latest
+steps:
+- uses: actions/checkout@v4
+- name: Setup PHP
+uses: shivammathur/setup-php@v2
+with:
+php-version: '8.4'
+- run: composer install --prefer-dist -no-progress
+- name: Run PHPStan
+run: /vendor/bin/phpstan analyse-error-format=github
+sca-php:
+name:
+SCA PHP Dependencies
+runs-on: ubuntu-latest
+steps:
+uses: actions/checkout@v4
+name: Setup PHP
+uses: shivammathur/setup-php@v2
+with:
+php-version: '8.4'
+run: composer install --prefer-dist --no-progress
+name: Composer Audit
+run: composer audit.03
